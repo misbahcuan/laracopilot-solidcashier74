@@ -10,60 +10,60 @@ class ProfileController extends Controller
 {
     public function index()
     {
-        if (!session('user_logged_in')) {
+        if (!session('user_id')) {
             return redirect()->route('login');
         }
 
-        $userId = session('user_id');
-        $user = User::find($userId);
-
+        $user = User::find(session('user_id'));
         return view('profile.index', compact('user'));
     }
 
     public function update(Request $request)
     {
-        if (!session('user_logged_in')) {
+        if (!session('user_id')) {
             return redirect()->route('login');
         }
 
-        $validated = $request->validate([
+        $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
+            'email' => 'required|email|unique:users,email,' . session('user_id'),
             'phone' => 'nullable|string|max:20',
             'country' => 'nullable|string|max:100'
         ]);
 
-        $userId = session('user_id');
-        $user = User::find($userId);
-        $user->update($validated);
+        $user = User::find(session('user_id'));
+        $user->update([
+            'name' => $request->name,
+            'email' => $request->email,
+            'phone' => $request->phone,
+            'country' => $request->country
+        ]);
 
-        session(['user_name' => $validated['name'], 'user_email' => $validated['email']]);
+        session(['user_name' => $user->name, 'user_email' => $user->email]);
 
         return redirect()->route('profile.index')->with('success', 'Profile updated successfully!');
     }
 
     public function updatePassword(Request $request)
     {
-        if (!session('user_logged_in')) {
+        if (!session('user_id')) {
             return redirect()->route('login');
         }
 
-        $validated = $request->validate([
+        $request->validate([
             'current_password' => 'required|string',
-            'new_password' => 'required|string|min:6',
-            'new_password_confirmation' => 'required|same:new_password'
+            'new_password' => 'required|string|min:6|confirmed'
         ]);
 
-        $userId = session('user_id');
-        $user = User::find($userId);
+        $user = User::find(session('user_id'));
 
-        if (!Hash::check($validated['current_password'], $user->password)) {
+        if (!Hash::check($request->current_password, $user->password)) {
             return back()->withErrors(['current_password' => 'Current password is incorrect.']);
         }
 
-        $user->password = Hash::make($validated['new_password']);
+        $user->password = Hash::make($request->new_password);
         $user->save();
 
-        return redirect()->route('profile.index')->with('success', 'Password updated successfully!');
+        return redirect()->route('profile.index')->with('success', 'Password changed successfully!');
     }
 }

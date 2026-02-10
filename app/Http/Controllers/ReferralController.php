@@ -10,35 +10,39 @@ class ReferralController extends Controller
 {
     public function index()
     {
-        if (!session('user_logged_in')) {
+        if (!session('user_id')) {
             return redirect()->route('login');
         }
 
-        $userId = session('user_id');
-        $user = User::find($userId);
-
-        $referrals = Referral::where('referrer_id', $userId)
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        $totalReferrals = $referrals->count();
-        $totalEarnings = $referrals->sum('commission');
-        $activeReferrals = $referrals->where('status', 'active')->count();
+        $user = User::find(session('user_id'));
 
         $referralLink = url('/register?ref=' . $user->referral_code);
+        $totalReferrals = Referral::where('referrer_id', $user->id)->count();
+        $totalEarnings = Referral::where('referrer_id', $user->id)->sum('commission');
+        $activeReferrals = Referral::where('referrer_id', $user->id)
+                                ->where('status', 'active')
+                                ->count();
+
+        $referrals = Referral::where('referrer_id', $user->id)
+                            ->orderBy('created_at', 'desc')
+                            ->take(20)
+                            ->get();
 
         return view('referral.index', compact(
-            'user', 'referrals', 'totalReferrals', 'totalEarnings',
-            'activeReferrals', 'referralLink'
+            'user', 'referralLink', 'totalReferrals', 'totalEarnings',
+            'activeReferrals', 'referrals'
         ));
     }
 
-    public function generate()
+    public function generate(Request $request)
     {
-        if (!session('user_logged_in')) {
+        if (!session('user_id')) {
             return redirect()->route('login');
         }
 
-        return redirect()->route('referral.index')->with('success', 'Referral link generated successfully!');
+        $user = User::find(session('user_id'));
+        $referralLink = url('/register?ref=' . $user->referral_code);
+
+        return response()->json(['link' => $referralLink]);
     }
 }

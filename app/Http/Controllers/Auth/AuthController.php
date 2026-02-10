@@ -6,12 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
     public function showRegister()
     {
-        if (session('user_logged_in')) {
+        if (session('user_id')) {
             return redirect()->route('dashboard');
         }
         return view('auth.register');
@@ -19,37 +20,40 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
-        $validated = $request->validate([
+        $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
-            'username' => 'required|string|max:255',
-            'password' => 'required|string|min:6',
-            'password_confirmation' => 'required|same:password'
+            'email' => 'required|email|unique:users,email',
+            'username' => 'required|string|unique:users,username|max:50',
+            'password' => 'required|string|min:6|confirmed'
         ]);
+
+        $referralCode = strtoupper(Str::random(8));
 
         $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'username' => $validated['username'],
-            'password' => Hash::make($validated['password']),
-            'balance' => 0.00,
-            'referral_code' => strtoupper(substr(md5(uniqid()), 0, 8))
+            'name' => $request->name,
+            'email' => $request->email,
+            'username' => $request->username,
+            'password' => Hash::make($request->password),
+            'referral_code' => $referralCode,
+            'balance' => 0,
+            'nxt_tokens' => 0
         ]);
 
+        // Auto login after registration
         session([
-            'user_logged_in' => true,
             'user_id' => $user->id,
             'user_name' => $user->name,
             'user_email' => $user->email,
-            'user_username' => $user->username
+            'user_balance' => $user->balance,
+            'logged_in' => true
         ]);
 
-        return redirect()->route('dashboard')->with('success', 'Registration successful! Welcome to the platform.');
+        return redirect()->route('dashboard')->with('success', 'Registration successful! Welcome to FutureTrade.');
     }
 
     public function showLogin()
     {
-        if (session('user_logged_in')) {
+        if (session('user_id')) {
             return redirect()->route('dashboard');
         }
         return view('auth.login');
@@ -57,25 +61,26 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-        $credentials = $request->validate([
+        $request->validate([
             'login' => 'required|string',
             'password' => 'required|string'
         ]);
 
-        $user = User::where('email', $credentials['login'])
-            ->orWhere('username', $credentials['login'])
-            ->first();
+        // Try to find user by email or username
+        $user = User::where('email', $request->login)
+                    ->orWhere('username', $request->login)
+                    ->first();
 
-        if ($user && Hash::check($credentials['password'], $user->password)) {
+        if ($user && Hash::check($request->password, $user->password)) {
             session([
-                'user_logged_in' => true,
                 'user_id' => $user->id,
                 'user_name' => $user->name,
                 'user_email' => $user->email,
-                'user_username' => $user->username
+                'user_balance' => $user->balance,
+                'logged_in' => true
             ]);
 
-            return redirect()->route('dashboard')->with('success', 'Welcome back!');
+            return redirect()->route('dashboard')->with('success', 'Welcome back, ' . $user->name . '!');
         }
 
         return back()->withErrors(['login' => 'Invalid credentials. Please try again.'])->withInput();
@@ -89,13 +94,19 @@ class AuthController extends Controller
     public function forgotPassword(Request $request)
     {
         $request->validate(['email' => 'required|email']);
-        
-        return back()->with('success', 'Password reset link sent to your email (Demo Mode).');
+
+        $user = User::where('email', $request->email)->first();
+
+        if ($user) {
+            return back()->with('success', 'Password reset link has been sent to your email (Demo: Check your email)');
+        }
+
+        return back()->withErrors(['email' => 'Email not found in our records.']);
     }
 
     public function logout()
     {
-        session()->forget(['user_logged_in', 'user_id', 'user_name', 'user_email', 'user_username']);
-        return redirect()->route('home')->with('success', 'Logged out successfully.');
+        session()->flush();
+        return redirect()->route('login')->with('success', 'You have been logged out successfully.');
     }
 }

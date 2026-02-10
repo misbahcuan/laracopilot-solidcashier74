@@ -2,31 +2,26 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Withdrawal;
 use App\Models\User;
+use App\Models\Withdrawal;
 use Illuminate\Http\Request;
 
 class WithdrawalController extends Controller
 {
     public function index()
     {
-        if (!session('user_logged_in')) {
+        if (!session('user_id')) {
             return redirect()->route('login');
         }
 
-        $userId = session('user_id');
-        $user = User::find($userId);
-
-        $recentWithdrawals = Withdrawal::where('user_id', $userId)
-            ->orderBy('created_at', 'desc')
-            ->take(5)
-            ->get();
+        $user = User::find(session('user_id'));
+        $recentWithdrawals = Withdrawal::where('user_id', $user->id)
+                                    ->orderBy('created_at', 'desc')
+                                    ->take(5)
+                                    ->get();
 
         $withdrawalMethods = [
-            ['type' => 'crypto', 'name' => 'Bitcoin (BTC)', 'icon' => '₿', 'fee' => '0.5%'],
-            ['type' => 'crypto', 'name' => 'Ethereum (ETH)', 'icon' => 'Ξ', 'fee' => '0.5%'],
-            ['type' => 'crypto', 'name' => 'USDT (TRC20)', 'icon' => '₮', 'fee' => '0.3%'],
-            ['type' => 'bank', 'name' => 'Bank Transfer', 'icon' => '🏦', 'fee' => '1.0%']
+            ['name' => 'USDT BEP-20', 'icon' => '💰', 'fee' => '10%']
         ];
 
         return view('withdrawal.index', compact('user', 'recentWithdrawals', 'withdrawalMethods'));
@@ -34,49 +29,50 @@ class WithdrawalController extends Controller
 
     public function store(Request $request)
     {
-        if (!session('user_logged_in')) {
+        if (!session('user_id')) {
             return redirect()->route('login');
         }
 
-        $validated = $request->validate([
-            'amount' => 'required|numeric|min:10',
-            'withdrawal_method' => 'required|string',
-            'wallet_address' => 'required|string'
+        $request->validate([
+            'amount' => 'required|numeric|min:20',
+            'wallet_address' => 'required|string',
+            'withdrawal_method' => 'required|string'
         ]);
 
-        $userId = session('user_id');
-        $user = User::find($userId);
+        $user = User::find(session('user_id'));
 
-        if ($user->balance < $validated['amount']) {
-            return back()->withErrors(['amount' => 'Insufficient balance for withdrawal.']);
+        if ($user->balance < $request->amount) {
+            return back()->withErrors(['amount' => 'Insufficient balance.']);
         }
 
+        // Deduct balance immediately
+        $user->balance -= $request->amount;
+        $user->save();
+        session(['user_balance' => $user->balance]);
+
         Withdrawal::create([
-            'user_id' => $userId,
-            'amount' => $validated['amount'],
-            'withdrawal_method' => $validated['withdrawal_method'],
-            'wallet_address' => $validated['wallet_address'],
-            'transaction_id' => 'WTH' . strtoupper(substr(md5(uniqid()), 0, 12)),
+            'user_id' => $user->id,
+            'amount' => $request->amount,
+            'withdrawal_method' => $request->withdrawal_method,
+            'wallet_address' => $request->wallet_address,
             'status' => 'pending'
         ]);
 
-        $user->balance -= $validated['amount'];
-        $user->save();
-
-        return redirect()->route('withdrawal.index')->with('success', 'Withdrawal request of $' . number_format($validated['amount'], 2) . ' submitted successfully!');
+        return redirect()->route('withdrawal.index')
+            ->with('success', '✅ Withdrawal request submitted! Admin will process within 24-48 hours.');
     }
 
     public function history()
     {
-        if (!session('user_logged_in')) {
+        if (!session('user_id')) {
             return redirect()->route('login');
         }
 
-        $userId = session('user_id');
-        $withdrawals = Withdrawal::where('user_id', $userId)
-            ->orderBy('created_at', 'desc')
-            ->paginate(20);
+        $user = User::find(session('user_id'));
+        $withdrawals = Withdrawal::where('user_id', $user->id)
+                                ->orderBy('created_at', 'desc')
+                                ->paginate(20);
 
-        return view('withdrawal.history', compact('withdrawals'));
+        return view('withdrawal.history', compact('user', 'withdrawals'));
     }
 }

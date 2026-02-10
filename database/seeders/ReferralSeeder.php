@@ -12,17 +12,18 @@ class ReferralSeeder extends Seeder
     {
         $users = User::all();
 
-        for ($i = 0; $i < 15; $i++) {
-            $referrer = $users->random();
-            $referred = $users->where('id', '!=', $referrer->id)->random();
-
-            if (!Referral::where('referrer_id', $referrer->id)->where('referred_id', $referred->id)->exists()) {
-                Referral::create([
-                    'referrer_id' => $referrer->id,
-                    'referred_id' => $referred->id,
-                    'commission' => rand(10, 500),
-                    'status' => rand(0, 1) ? 'active' : 'inactive'
-                ]);
+        foreach ($users->take(5) as $referrer) {
+            for ($i = 0; $i < rand(2, 5); $i++) {
+                $referred = $users->random();
+                if ($referred->id !== $referrer->id) {
+                    Referral::create([
+                        'referrer_id' => $referrer->id,
+                        'referred_id' => $referred->id,
+                        'level' => rand(1, 7),
+                        'commission' => rand(10, 500),
+                        'status' => rand(0, 1) ? 'active' : 'inactive'
+                    ]);
+                }
             }
         }
     }

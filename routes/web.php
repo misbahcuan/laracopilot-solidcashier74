@@ -66,3 +66,6 @@ Route::post('/admin/deposits/{id}/approve', [AdminController::class, 'approveDep
 Route::get('/admin/withdrawals', [AdminController::class, 'withdrawals'])->name('admin.withdrawals');
 Route::post('/admin/withdrawals/{id}/approve', [AdminController::class, 'approveWithdrawal'])->name('admin.withdrawals.approve');
 Route::post('/admin/withdrawals/{id}/reject', [AdminController::class, 'rejectWithdrawal'])->name('admin.withdrawals.reject');
+
+// Cron endpoint for completing trades (secured by IP or key in production)
+Route::get('/cron/complete-trades', [TradingController::class, 'completeTrades']);

@@ -9,18 +9,18 @@ return new class extends Migration
     public function up()
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->string('username')->unique()->after('name');
-            $table->decimal('balance', 15, 2)->default(0)->after('password');
-            $table->string('referral_code', 20)->unique()->after('balance');
-            $table->string('phone', 20)->nullable()->after('referral_code');
-            $table->string('country', 100)->nullable()->after('phone');
+            $table->string('username')->unique()->after('email');
+            $table->string('phone')->nullable()->after('username');
+            $table->string('country')->nullable()->after('phone');
+            $table->decimal('balance', 15, 2)->default(0)->after('country');
+            $table->string('referral_code')->unique()->after('balance');
         });
     }
 
     public function down()
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn(['username', 'balance', 'referral_code', 'phone', 'country']);
+            $table->dropColumn(['username', 'phone', 'country', 'balance', 'referral_code']);
         });
     }
 };
